@@ -1,0 +1,98 @@
+---
+title: "Practical Machine Learning - Course Project"
+author: "Reynold Zuil"
+date: "27 December, 2015"
+output:
+  html_document:
+    toc: yes
+---
+
+## Processing Data
+
+Download the training and test datasets and load them in.
+
+```{r cache = TRUE, message=FALSE}
+
+knitr::opts_chunk$set(fig.width=8, fig.height=4, fig.path='../FiguresAndAnalysis/',echo=FALSE, warning=FALSE, message=FALSE)
+
+# load package
+library(caret)
+# load data
+train <- read.csv("pml-training.csv", header = TRUE, na.strings=c("","NA", "#DIV/0!"))
+test <- read.csv("pml-testing.csv", header = TRUE, na.strings=c("","NA", "#DIV/0!"))
+```
+
+In order to run the machine learning algorithms, the features used cannot contain any `NA` values. Calculated the percentage of NA's for each column. 
+
+```{r cache = TRUE}
+# see error percentage 
+NAPercent <- round(colMeans(is.na(train)), 2)
+table(NAPercent)
+```
+Only 60 variables have complete data so those are the variables we will use to build the prediction algorithm. I removed the first variable here because it is the row index from the csv file and not a true variable.
+
+```{r cache = TRUE}
+# find index of the complete columns minus the first 
+index <- which(NAPercent==0)[-1]
+# subset the data
+train <- train[, index]
+test <- test[, index]
+# looking at the structure of the data for the first 10 columns
+str(train[, 1:10])
+```
+The first 6 variables `user_name`, `raw_timestamp_part_1`, `raw_timestamp_part_2`, `cvtd_timestamp`, `new_window`, `num_window` are removed, not interesting.
+
+Convert all features to `numeric` class.
+
+```{r cache = TRUE}
+# subset the data
+train <- train[, -(1:6)]
+test <- test[, -(1:6)]
+# convert all numerical data to numeric class
+for(i in 1:(length(train)-1)){
+    train[,i] <- as.numeric(train[,i])
+    test[,i] <- as.numeric(test[,i])
+}
+```
+
+## Cross Validation
+
+We set `test` set aside and split the `train` data into two sections for cross validation. We will allocate 80% of the data to train the model and 20% to validate it.
+
+```{r cache = TRUE}
+# split train data set
+inTrain <- createDataPartition(y=train$classe,p=0.8, list=FALSE)
+trainData <- train[inTrain,]
+validation <- train[-inTrain,]
+# print out the dimentions of the 3 data sets
+rbind(trainData = dim(trainData), validation = dim(validation), test = dim(test))
+```
+
+## Comparing Model and Results 
+
+Random forest, to build the model.
+
+```{r cache = TRUE, message=FALSE}
+# load randomForest package
+library(randomForest)
+# run the random forest algorithm on the training data set
+rfFit <- randomForest(classe~., data = trainData, method ="rf", prox = TRUE)
+rfFit
+# use model to predict on validation data set
+rfPred <- predict(rfFit, validation)
+# predicted result
+confusionMatrix(rfPred, validation$classe)
+```
+
+
+We see that randomForest has a 0.43% out-of-bag (OOB) error rate. When applied to the validation set for cross validation, the model achieved an accuracy of 99.7%, which indicates the actual error rate is 0.3%.
+
+
+## Result
+
+We can apply the randomForest model to the 20 given test set for the predictions. The results were all correct.
+
+```{r cache = TRUE}
+# apply random forest model to test set
+predict(rfFit, test)
+```
